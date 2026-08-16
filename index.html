@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>Zippy Code Editor 📁</title>
+    
+    <!-- 🎨 DISEÑO RETRO DE WINDOWS 95 (CSS) -->
+    <style>
+        body {
+            background-color: #008080; /* Fondo verde Windows 95 */
+            font-family: 'Arial', sans-serif;
+            margin: 20px;
+        }
+        .ventana {
+            background-color: #c0c0c0;
+            border: 3px solid;
+            border-color: #fff #0a0a0a #0a0a0a #fff;
+            padding: 10px;
+            width: 600px;
+            box-shadow: 2px 2px 10px rgba(0,0,0,0.5);
+            margin-bottom: 20px;
+        }
+        .barra-titulo {
+            background: linear-gradient(90deg, #000080, #1084d0);
+            color: white;
+            padding: 4px 8px;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .caja-llave {
+            margin-top: 10px;
+            border: 2px inset #fff;
+            padding: 8px;
+            background: #e0e0e0;
+        }
+        .caja-llave label {
+            font-size: 12px;
+            font-weight: bold;
+            display: block;
+            margin-bottom: 4px;
+        }
+        .caja-llave input {
+            width: 95%;
+            padding: 4px;
+            font-family: monospace;
+            border: 2px inset #fff;
+        }
+        textarea {
+            width: 96%;
+            height: 220px;
+            font-family: 'Courier New', monospace;
+            background-color: white;
+            color: black;
+            border: 2px solid #0a0a0a;
+            padding: 8px;
+            margin-top: 10px;
+            font-size: 14px;
+        }
+        button {
+            background-color: #c0c0c0;
+            border: 2px solid;
+            border-color: #fff #0a0a0a #0a0a0a #fff;
+            padding: 6px 20px;
+            margin-top: 10px;
+            font-weight: bold;
+            cursor: pointer;
+        }
+        button:active {
+            border-color: #0a0a0a #fff #fff #0a0a0a;
+        }
+        /* El hogar de Zippy */
+        .zippy-box {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            width: 260px;
+            background: #ffffcc;
+            border: 2px solid #000;
+            padding: 12px;
+            border-radius: 5px;
+            box-shadow: 4px 4px 0px #000;
+            display: block;
+            z-index: 9999;
+        }
+        .zippy-avatar {
+            font-size: 35px;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        .boton-cerrar {
+            background-color: #c0c0c0;
+            border: 1px solid #000;
+            font-size: 10px;
+            padding: 1px 4px;
+            cursor: pointer;
+            float: right;
+        }
+    </style>
+
+    <!-- 📦 LIBRERÍAS DE SKULPT (Correr Python en navegador) -->
+    <script src="https://jsdelivr.net"></script>
+    <script src="https://jsdelivr.net"></script>
+</head>
+<body>
+
+    <!-- 🏗️ INTERFAZ DE USUARIO (HTML) -->
+    <div class="ventana">
+        <div class="barra-titulo">
+            <span>ZippyIDE.exe - Editor de Python</span>
+        </div>
+        
+        <div class="caja-llave">
+            <label for="input-key">Llave Secreta de Groq (gsk_...):</label>
+            <input type="password" id="input-key" placeholder="Pega tu API Key de Groq aquí de forma segura">
+        </div>
+
+        <p style="margin: 10px 0 5px 0; font-size: 13px;">Escribe tu código. ¡Zippy te analizará si dejas de escribir por 10 segundos!</p>
+        <textarea id="editor" placeholder="# Escribe tu código de Python aquí..."></textarea>
+        
+        <button onclick="correrCodigo()">Ejecutar Código</button>
+        
+        <p><strong>Consola de Salida:</strong></p>
+        <pre id="consola" style="background: black; color: lime; padding: 10px; min-height: 60px; font-family: monospace; border: 2px inset #fff; margin-top: 5px;"></pre>
+        
+        <button onclick="mostrarZippy()" style="font-size: 11px; padding: 3px 10px;">Llamar a Zippy de nuevo</button>
+    </div>
+
+    <!-- Alerta flotante de Zippy -->
+    <div class="zippy-box" id="zippy-asistente">
+        <button class="boton-cerrar" onclick="ocultarZippy()">X</button>
+        <div class="zippy-avatar" id="zippy-cara">📁👀</div>
+        <p id="zippy-texto" style="margin: 0; font-size: 13px; color: #333; font-weight: bold; line-height: 1.3;">
+            ¡Hola! Pon tu llave en la casilla de arriba y empezaré a cuidar tu código en silencio...
+        </p>
+    </div>
+
+    <!-- 🧠 LÓGICA CORREGIDA (JAVASCRIPT) -->
+    <script>
+        let temporizador;
+        const editor = document.getElementById("editor");
+        const zippyTexto = document.getElementById("zippy-texto");
+        const zippyCara = document.getElementById("zippy-cara");
+        const zippyAsistente = document.getElementById("zippy-asistente");
+
+        // 1. Reloj de inactividad de 10 segundos
+        editor.addEventListener("input", () => {
+            clearTimeout(temporizador);
+            zippyTexto.innerText = "Te veo escribir... 👀";
+            zippyCara.innerText = "📁📝";
+
+            temporizador = setTimeout(() => {
+                analizarCodigoConIA();
+            }, 10000); 
+        });
+
+        // 2. Conexión segura con el cerebro de Groq
+        async function analizarCodigoConIA() {
+            let codigoDelUsuario = editor.value.trim();
+            if (!codigoDelUsuario) {
+                zippyCara.innerText = "📁👀";
+                zippyTexto.innerText = "¡El editor está vacío! Escribe algo para poder ayudarte.";
+                return;
+            }
+
+            let MI_LLAVE_GROQ = document.getElementById("input-key").value.trim();
+
+            if (!MI_LLAVE_GROQ) {
+                zippyCara.innerText = "📁⚠️";
+                zippyTexto.innerText = "¡Zippy dice: Por favor, pega tu propia API Key en la casilla de arriba para poder ayudarte!";
+                return;
+            }
+
+            zippyCara.innerText = "📁🤔";
+            zippyTexto.innerText = "Zippy está analizando tus líneas...";
+
+            try {
+                // Ajustamos la petición para evitar los bloqueos de seguridad locales
+                let respuesta = await fetch("https://groq.com", {
+                    method: "POST",
+                    headers: {
+                        "Authorization": "Bearer " + MI_LLAVE_GROQ,
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        model: "llama3-8b-8192", 
+                        messages: [
+                            {
+                                role: "system",
+                                content: "Actúas como Zippy, un gracioso asistente de programación para niños que parece una carpeta amarilla con ojos estilo Windows 95. Analiza el código de Python del usuario. Si encuentras un error de sintaxis o lógica (como usar 'is not in' en lugar de 'not in'), explícalo en una sola frase divertida y muy corta en español, y dale la solución exacta."
+                            },
+                            {
+                                role: "user",
+                                content: codigoDelUsuario
+                            }
+                        ]
+                    })
+                });
+
+                let datos = await respuesta.json();
+                
+                if (datos.error) {
+                    zippyCara.innerText = "📁❌";
+                    zippyTexto.innerText = "Hubo un problema: " + datos.error.message;
+                    return;
+                }
+
+                let consejoIA = datos.choices[0].message.content;
+
+                zippyCara.innerText = "📁💡";
+                zippyTexto.innerText = consejoIA;
+
+            } catch (error) {
+                console.error(error);
+                zippyCara.innerText = "📁❌";
+                zippyTexto.innerText = "¡Ups! No pude conectar con la IA. Asegúrate de estar conectado a internet.";
+            }
+        }
+
+        // 3. Funciones de control de interfaz de Zippy
+        function ocultarZippy() {
+            zippyAsistente.style.display = "none";
+        }
+
+        function mostrarZippy() {
+            zippyAsistente.style.display = "block";
+            zippyCara.innerText = "📁😄";
+            zippyTexto.innerText = "¡Volví! Estoy listo para ayudarte.";
+        }
+
+        // 4. Configuración para que Skulpt pinte en la pantalla
+        function salidaConsola(texto) {
+            document.getElementById("consola").innerText += texto;
+        }
+
+        function correrCodigo() {
+            document.getElementById("consola").innerText = ""; 
+            let codigo = editor.value;
+            
+            Sk.configure({ output: salidaConsola });
+            
+            try {
+                Sk.miscellaneous.evalSync(codigo);
+            } catch(e) {
+                document.getElementById("consola").innerText = e.toString();
+            }
+        }
+    </script>
+</body>
+</html>
