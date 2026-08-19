@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>tribox — Python · JS · HTML en el navegador</title>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@latest/dist/skulpt.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/skulpt@latest/dist/skulpt-stdlib.js"></script>
+<style>
+  :root{
+    --bg:        #0e1013;
+    --panel:     #15181d;
+    --panel-2:   #1a1e24;
+    --line:      #262b33;
+    --text:      #d9dde3;
+    --text-dim:  #7a8290;
+    --mono: ui-monospace, "Cascadia Code", "Fira Code", "JetBrains Mono", Menlo, Consolas, monospace;
+    --sans: -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+
+    --py-1: #4b8bbe;  --py-2: #ffd43b;
+    --js-1: #f0db4f;  --js-2: #323330;
+    --ht-1: #e34c26;  --ht-2: #f16529;
+
+    --accent: var(--py-1);
+    --accent-2: var(--py-2);
+    --radius: 9px;
+  }
+
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; margin:0; }
+  body{
+    background:var(--bg); color:var(--text); font-family:var(--sans);
+    display:flex; flex-direction:column; overflow:hidden;
+  }
+
+  /* ================= HEADER (moderno) ================= */
+  #winbar{ display:none; }
+
+  header{
+    display:flex; align-items:center; gap:14px;
+    padding:10px 16px; background:var(--panel);
+    border-bottom:1px solid var(--line); flex-shrink:0; position:relative; z-index:20;
+  }
+  .brand{ display:flex; align-items:center; gap:8px; font-weight:700; letter-spacing:.02em; }
+  .brand .dot{ width:10px; height:10px; border-radius:50%; background:var(--accent); transition:background .25s; box-shadow:0 0 10px var(--accent); }
+  .brand small{ color:var(--text-dim); font-weight:400; font-family:var(--mono); font-size:11px; }
+
+  .switch{
+    position:relative; display:flex; background:var(--panel-2);
+    border:1px solid var(--line); border-radius:999px; padding:3px;
+    font-family:var(--mono); font-size:12.5px; user-select:none;
+  }
+  .switch .thumb{
+    position:absolute; top:3px; bottom:3px; left:3px;
+    width:calc(33.333% - 2px); border-radius:999px;
+    background:var(--accent); transition:transform .28s cubic-bezier(.65,0,.35,1), background .28s;
+    z-index:0;
+  }
+  .switch button{
+    position:relative; z-index:1; flex:1; border:none; background:transparent;
+    color:var(--text-dim); padding:7px 16px; border-radius:999px; cursor:pointer;
+    font-family:var(--mono); font-size:12.5px; font-weight:600; transition:color .2s;
+    white-space:nowrap;
+  }
+  .switch button.active{ color:#0b0d10; }
+
+  .spacer{ flex:1; }
+
+  .actions{ display:flex; gap:8px; align-items:center; }
+  .btn{
+    font-family:var(--mono); font-size:12.5px; font-weight:600;
+    padding:8px 14px; border-radius:8px; border:1px solid var(--line);
+    background:var(--panel-2); color:var(--text); cursor:pointer;
+    display:flex; align-items:center; gap:6px; transition:transform .12s, border-color .2s;
+  }
+  .btn:hover{ border-color:var(--accent); }
+  .btn:active{ transform:scale(.96); }
+  .btn.primary{ background:var(--accent); color:#0b0d10; border-color:var(--accent); }
+  .btn.primary:hover{ filter:brightness(1.08); }
+  .btn.icon{ padding:8px 10px; }
+
+  #savedFlash{
+    font-family:var(--mono); font-size:11px; color:var(--text-dim);
+    opacity:0; transition:opacity .4s; white-space:nowrap;
+  }
+  #savedFlash.show{ opacity:1; }
+
+  /* ================= WORKSPACE ================= */
+  main{ flex:1; min-height:0; position:relative; }
+  .view{ position:absolute; inset:0; display:none; }
+  .view.active{ display:flex; }
+
+  .pane{
+    display:flex; flex-direction:column; min-width:0; min-height:0;
+    background:var(--panel); border:1px solid var(--line);
+  }
+  .pane + .pane{ border-left:none; }
+  .pane-head{
+    padding:7px 12px; font-family:var(--mono); font-size:11px; letter-spacing:.06em;
+    text-transform:uppercase; color:var(--text-dim); border-bottom:1px solid var(--line);
+    display:flex; align-items:center; justify-content:space-between; flex-shrink:0;
+  }
+  .pane-head .tag{ color:var(--accent); }
+
+  textarea.editor{
+    flex:1; resize:none; border:none; outline:none; width:100%;
+    background:var(--panel); color:var(--text); font-family:var(--mono);
+    font-size:13.5px; line-height:1.55; padding:14px; tab-size:4;
+  }
+  textarea.editor::placeholder{ color:var(--text-dim); }
+
+  .console{
+    flex:1; overflow-y:auto; padding:12px 14px; font-family:var(--mono);
+    font-size:13px; line-height:1.6; white-space:pre-wrap; word-break:break-word;
+  }
+  .console .line-err{ color:#ff6b6b; }
+  .console .line-in{ color:var(--accent-2); }
+  .console-input-row{ display:flex; align-items:center; gap:6px; margin-top:2px; }
+  .console-input-row input{
+    flex:1; background:var(--panel-2); border:1px solid var(--accent);
+    color:var(--text); font-family:var(--mono); font-size:13px;
+    padding:4px 8px; border-radius:5px; outline:none;
+  }
+
+  .turtle-wrap{
+    flex:1; min-height:0; display:flex; align-items:center; justify-content:center;
+    background:
+      linear-gradient(var(--line) 1px, transparent 1px) 0 0/24px 24px,
+      linear-gradient(90deg, var(--line) 1px, transparent 1px) 0 0/24px 24px,
+      #0b0d10;
+    overflow:auto; position:relative; cursor:pointer;
+  }
+  #turtle-target{ display:flex; align-items:center; justify-content:center; }
+  #turtle-target canvas{ display:block; outline:none; }
+  .turtle-hint{
+    position:absolute; bottom:8px; left:50%; transform:translateX(-50%);
+    font-family:var(--mono); font-size:10.5px; color:var(--text-dim);
+    background:rgba(0,0,0,.4); padding:3px 8px; border-radius:6px; pointer-events:none;
+  }
+
+  iframe.preview{ flex:1; width:100%; border:none; background:#fff; }
+
+  #view-python .col-editor{ width:50%; }
+  #view-python .col-right{ width:50%; display:flex; flex-direction:column; }
+  #view-python .col-right .pane{ height:50%; }
+
+  #view-javascript .col-editor{ width:55%; }
+  #view-javascript .col-console{ width:45%; }
+
+  #view-html .col-editor{ width:50%; }
+  #view-html .col-preview{ width:50%; }
+
+  footer{
+    padding:5px 16px; border-top:1px solid var(--line); background:var(--panel);
+    color:var(--text-dim); font-family:var(--mono); font-size:11px;
+    display:flex; justify-content:space-between; flex-shrink:0; gap:12px;
+  }
+  footer button.link{
+    background:none; border:none; color:var(--text-dim); font-family:var(--mono);
+    font-size:11px; text-decoration:underline; cursor:pointer; padding:0;
+  }
+  footer button.link:hover{ color:var(--accent); }
+
+  ::-webkit-scrollbar{ width:10px; height:10px; }
+  ::-webkit-scrollbar-thumb{ background:var(--line); border-radius:6px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+
+  /* ================= toggle-btn genérico ================= */
+  .toggle-row{ display:flex; align-items:center; justify-content:space-between; gap:10px; }
+  .toggle-row .label{ font-size:12.5px; }
+  .toggle-row .sub{ font-size:10.5px; color:var(--text-dim); display:block; margin-top:2px; }
+  .toggle-btn{
+    border:1px solid var(--line); background:var(--panel-2); color:var(--text-dim);
+    font-family:var(--mono); font-size:11px; font-weight:700; border-radius:999px;
+    padding:6px 12px; cursor:pointer; min-width:64px; text-align:center; flex-shrink:0;
+    transition:background .2s, color .2s, border-color .2s;
+  }
+  .toggle-btn[data-state="on"]{ background:var(--accent); color:#0b0d10; border-color:var(--accent); }
+
+  /* ================= settings panel ================= */
+  #settingsPanel{
+    position:absolute; top:56px; right:16px; width:320px; z-index:50;
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    box-shadow:0 12px 30px rgba(0,0,0,.5); padding:14px; display:none; flex-direction:column; gap:14px;
+  }
+  #settingsPanel.open{ display:flex; }
+  #settingsPanel h3{ margin:0; font-size:13px; letter-spacing:.03em; }
+  #settingsPanel .field{ display:flex; flex-direction:column; gap:6px; }
+  #settingsPanel input[type=password], #settingsPanel input[type=text]{
+    background:var(--panel-2); border:1px solid var(--line); color:var(--text);
+    font-family:var(--mono); font-size:12px; padding:8px 10px; border-radius:7px; outline:none;
+  }
+  #settingsPanel input:focus{ border-color:var(--accent); }
+  #settingsPanel hr{ border:none; border-top:1px solid var(--line); margin:2px 0; }
+  #keyStatus{ font-size:10.5px; color:var(--text-dim); }
+
+  /* ================= modal (notas de compatibilidad) ================= */
+  .modal-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:100;
+    display:none; align-items:center; justify-content:center; padding:20px;
+  }
+  .modal-overlay.open{ display:flex; }
+  .modal-box{
+    background:var(--panel); border:1px solid var(--line); border-radius:12px;
+    max-width:560px; width:100%; max-height:80vh; overflow-y:auto; padding:22px;
+  }
+  .modal-box h2{ margin-top:0; font-size:16px; }
+  .modal-box h4{ margin-bottom:4px; color:var(--accent); font-size:12.5px; text-transform:uppercase; letter-spacing:.04em; }
+  .modal-box p, .modal-box li{ font-size:13px; line-height:1.6; color:var(--text); }
+  .modal-box code{ background:var(--panel-2); padding:1px 5px; border-radius:4px; font-family:var(--mono); font-size:12px; }
+  .modal-close{ float:right; }
+
+  /* ================= ZIPPY ================= */
+  #zippy{
+    position:fixed; right:20px; bottom:20px; z-index:80;
+    display:flex; flex-direction:column; align-items:flex-end; gap:8px;
+    font-family:var(--sans);
+  }
+  #zippyBubble{
+    max-width:290px; background:var(--panel); border:1px solid var(--line);
+    border-radius:12px; padding:10px 12px; font-size:12.5px; color:var(--text);
+    box-shadow:0 8px 22px rgba(0,0,0,.45); display:none; position:relative;
+  }
+  #zippyBubble.show{ display:block; }
+  #zippyBubble:after{
+    content:""; position:absolute; right:22px; bottom:-7px; width:14px; height:14px;
+    background:var(--panel); border-right:1px solid var(--line); border-bottom:1px solid var(--line);
+    transform:rotate(45deg);
+  }
+  #zippyBubble .zippy-status{ font-weight:600; margin:0 0 6px 0; }
+  #zippyPanel{ display:none; flex-direction:column; gap:8px; margin-top:6px; }
+  #zippyPanel.open{ display:flex; }
+  #zippyPanel pre{
+    background:var(--panel-2); border:1px solid var(--line); border-radius:8px;
+    padding:8px; font-family:var(--mono); font-size:11px; max-height:160px; overflow:auto;
+    white-space:pre-wrap; word-break:break-word; margin:0;
+  }
+  .zippy-actions{ display:flex; gap:8px; }
+  .zippy-actions button{
+    flex:1; font-family:var(--mono); font-size:11px; font-weight:700; border-radius:7px;
+    border:1px solid var(--line); padding:7px; cursor:pointer; background:var(--panel-2); color:var(--text);
+  }
+  .zippy-actions button.apply{ background:#2f9e58; border-color:#2f9e58; color:#fff; }
+  .zippy-actions button.discard{ background:transparent; }
+
+  #zippyFace{ width:64px; height:64px; cursor:pointer; filter:drop-shadow(0 6px 14px rgba(0,0,0,.5)); }
+  #zippyFace .pupil{ transition:transform .25s; }
+  #zippyFace.thinking .pupil{ animation: zippyLook 1.1s infinite; }
+  #zippyFace.thinking #zippyRing{ opacity:1; animation: zippySpin 1s linear infinite; }
+  #zippyFace #zippyRing{ opacity:0; transform-origin:32px 34px; }
+  #zippyFace.blink .eyeL, #zippyFace.blink .eyeR{ transform: scaleY(.12); }
+  #zippyFace .eyeL, #zippyFace .eyeR{ transition: transform .09s; transform-origin: center; }
+  @keyframes zippyLook{
+    0%,100%{ transform:translateX(0); } 25%{ transform:translateX(-2.5px); }
+    50%{ transform:translateX(0); } 75%{ transform:translateX(2.5px); }
+  }
+  @keyframes zippySpin{ to{ transform:rotate(360deg); } }
+
+  /* ============================================================
+     TEMA RETRO — Windows 95
+     ============================================================ */
+  body.retro{
+    --bg:#008080; --panel:#c0c0c0; --panel-2:#d4d0c8; --line:#000000; --text:#000000; --text-dim:#4b4b4b;
+    --mono: "Courier New", monospace; --sans:"Tahoma","MS Sans Serif",Arial,sans-serif; --radius:0px;
+    background:
+      repeating-conic-gradient(#017a7a 0% 25%, #008080 0% 50%) 0 0/28px 28px;
+  }
+  body.retro #winbar{
+    display:flex; align-items:center; gap:6px; background:linear-gradient(90deg,#000080,#1084d0);
+    color:#fff; padding:4px 6px; font-family:var(--sans); font-size:13px; font-weight:700; flex-shrink:0;
+  }
+  body.retro #winbar .wicon{ width:16px; height:16px; background:#ffcf5c; border:1px solid #6b4f16; flex-shrink:0; }
+  body.retro #winbar .wtitle{ flex:1; }
+  body.retro #winbar .wbtn{
+    width:18px; height:16px; background:#c0c0c0; border:1px outset #fff; color:#000;
+    font-size:10px; line-height:14px; text-align:center; font-weight:900; cursor:default;
+  }
+  body.retro header{
+    background:var(--panel); border-bottom:2px solid #808080; box-shadow:inset 0 -1px 0 #fff;
+  }
+  body.retro .brand{ color:#000; }
+  body.retro .brand small{ color:#4b4b4b; }
+  body.retro .switch{
+    background:transparent; border:none; border-radius:0; padding:0; gap:2px;
+  }
+  body.retro .switch .thumb{ display:none; }
+  body.retro .switch button{
+    background:#c0c0c0; color:#000; border:2px outset #fff; border-radius:0; padding:6px 12px;
+  }
+  body.retro .switch button.active{ border-style:inset; background:#d4d0c8; color:#000; }
+  body.retro .btn{
+    background:#c0c0c0; color:#000; border:2px outset #fff; border-radius:0; font-family:var(--sans);
+  }
+  body.retro .btn:active, body.retro .btn.primary{ border-style:inset; }
+  body.retro .btn.primary{ background:#c0c0c0; color:#000; }
+  body.retro .pane{ border:2px solid; border-color:#808080 #fff #fff #808080; background:#fff; }
+  body.retro .pane-head{
+    background:linear-gradient(90deg,#000080,#1084d0); color:#fff; border-bottom:none;
+    font-family:var(--sans); text-transform:none; letter-spacing:0; font-size:12px; font-weight:700;
+  }
+  body.retro .pane-head .tag{ color:#ffd43b; }
+  body.retro textarea.editor{ background:#fff; color:#000; font-family:var(--mono); }
+  body.retro .console{ background:#000; color:#00ff66; font-family:var(--mono); }
+  body.retro .console .line-err{ color:#ff5555; }
+  body.retro .console .line-in{ color:#ffff55; }
+  body.retro .console-input-row input{ background:#000; color:#0f0; border:1px solid #0f0; border-radius:0; }
+  body.retro .turtle-wrap{ background:#fff; }
+  body.retro iframe.preview{ border:none; }
+  body.retro footer{ background:#c0c0c0; border-top:2px solid #fff; box-shadow:inset 0 1px 0 #808080; color:#000; }
+  body.retro footer button.link{ color:#000080; }
+  body.retro .toggle-btn{ border:2px outset #fff; border-radius:0; background:#c0c0c0; color:#000; }
+  body.retro .toggle-btn[data-state="on"]{ border-style:inset; background:#d4d0c8; color:#000; }
+  body.retro #settingsPanel{ border:2px outset #fff; border-radius:0; background:#c0c0c0; color:#000; box-shadow:4px 4px 0 rgba(0,0,0,.3); }
+  body.retro #settingsPanel input{ border:2px inset #fff; border-radius:0; background:#fff; font-family:var(--mono); }
+  body.retro .modal-box{ border:2px outset #fff; border-radius:0; background:#c0c0c0; color:#000; box-shadow:4px 4px 0 rgba(0,0,0,.3); }
+  body.retro .modal-box code{ background:#fff; border:1px solid #808080; }
+  body.retro #zippyBubble{ border:2px outset #fff; border-radius:0; background:#ffffe1; color:#000; box-shadow:3px 3px 0 rgba(0,0,0,.3); }
+  body.retro #zippyBubble:after{ display:none; }
+  body.retro .zippy-actions button{ border:2px outset #fff; border-radius:0; }
+  body.retro .zippy-actions button.apply{ background:#c0c0c0; color:#000; }
+</style>
+</head>
+<body>
+
+<div id="winbar">
+  <div class="wicon"></div>
+  <div class="wtitle">tribox.exe — Editor multi-lenguaje</div>
+  <div class="wbtn">_</div><div class="wbtn">□</div><div class="wbtn">×</div>
+</div>
+
+<header>
+  <div class="brand"><span class="dot" id="modeDot"></span>tribox <small id="modeLabel">python</small></div>
+
+  <div class="switch" id="switch">
+    <div class="thumb" id="switchThumb"></div>
+    <button data-mode="python" class="active">Python</button>
+    <button data-mode="javascript">JavaScript</button>
+    <button data-mode="html">HTML</button>
+  </div>
+
+  <div class="spacer"></div>
+  <span id="savedFlash">guardado</span>
+
+  <div class="actions">
+    <button class="btn icon" id="settingsBtn" title="Ajustes">⚙️</button>
+    <button class="btn" id="downloadBtn">⬇ Descargar</button>
+    <button class="btn" id="clearBtn">Limpiar</button>
+    <button class="btn primary" id="runBtn">▶ Ejecutar</button>
+  </div>
+
+  <div id="settingsPanel">
+    <div>
+      <h3>Apariencia</h3>
+      <div class="toggle-row" style="margin-top:8px;">
+        <span class="label">Tema retro (Windows 95)<span class="sub">Alterna con el estilo moderno</span></span>
+        <button class="toggle-btn" id="themeToggle" data-state="off">OFF</button>
+      </div>
+    </div>
+    <hr>
+    <div>
+      <h3>ZippyAssist 🗂️</h3>
+      <div class="toggle-row" style="margin-top:8px;">
+        <span class="label">Activar Zippy<span class="sub">Revisa tu código si dejas de escribir 10s</span></span>
+        <button class="toggle-btn" id="zippyToggle" data-state="off">OFF</button>
+      </div>
+      <div class="field" style="margin-top:10px;">
+        <label class="label" for="groqKeyInput">Clave API de Groq</label>
+        <input type="password" id="groqKeyInput" placeholder="gsk_..." autocomplete="off" />
+        <span id="keyStatus">Se guarda solo en tu navegador (localStorage). Nunca se envía a nadie más que a api.groq.com.</span>
+      </div>
+    </div>
+    <hr>
+    <button class="btn" id="notesBtn" style="width:100%; justify-content:center;">ℹ️ Notas de compatibilidad</button>
+  </div>
+</header>
+
+<main>
+
+  <!-- ================= PYTHON ================= -->
+  <div class="view active" id="view-python">
+    <div class="pane col-editor">
+      <div class="pane-head"><span>Editor <span class="tag">.py</span></span><span>Ctrl/Cmd + Enter</span></div>
+      <textarea class="editor" id="py-editor" spellcheck="false">import turtle
+import shelve
+
+# shelve funciona aquí gracias a un shim que usa localStorage por debajo
+datos = shelve.open("contador_demo")
+visitas = datos.get("visitas", 0) + 1
+datos["visitas"] = visitas
+print("Has ejecutado este programa", visitas, "veces (persistido con shelve).")
+datos.close()
+
+t = turtle.Turtle()
+t.shape("turtle")
+t.color("#4b8bbe")
+
+def mover_arriba():
+    t.setheading(90)
+    t.forward(20)
+
+def mover_abajo():
+    t.setheading(270)
+    t.forward(20)
+
+screen = turtle.Screen()
+screen.listen()
+screen.onkeypress(mover_arriba, "Up")
+screen.onkeypress(mover_abajo, "Down")
+
+print("Haz clic en el panel de la tortuga y usa las flechas ↑ / ↓")
+</textarea>
+    </div>
+    <div class="col-right">
+      <div class="pane">
+        <div class="pane-head"><span>Consola</span><span id="py-status" style="color:var(--text-dim)">lista</span></div>
+        <div class="console" id="py-console"></div>
+      </div>
+      <div class="pane">
+        <div class="pane-head"><span>Tortuga</span></div>
+        <div class="turtle-wrap" id="turtleWrap">
+          <div id="turtle-target"></div>
+          <div class="turtle-hint">clic aquí para que las teclas respondan</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ================= JAVASCRIPT ================= -->
+  <div class="view" id="view-javascript">
+    <div class="pane col-editor">
+      <div class="pane-head"><span>Editor <span class="tag">.js</span></span><span>Ctrl/Cmd + Enter</span></div>
+      <textarea class="editor" id="js-editor" spellcheck="false">console.log("Hola desde JavaScript!");
+
+const suma = (a, b) => a + b;
+console.log("2 + 3 =", suma(2, 3));
+
+const nombre = input("¿Cómo te llamas? ");
+console.log("Encantado, " + nombre);
+</textarea>
+    </div>
+    <div class="pane col-console">
+      <div class="pane-head"><span>Consola</span></div>
+      <div class="console" id="js-console"></div>
+    </div>
+  </div>
+
+  <!-- ================= HTML ================= -->
+  <div class="view" id="view-html">
+    <div class="pane col-editor">
+      <div class="pane-head"><span>Editor <span class="tag">.html</span></span><span>Ctrl/Cmd + Enter</span></div>
+      <textarea class="editor" id="html-editor" spellcheck="false">&lt;!DOCTYPE html&gt;
+&lt;html&gt;
+&lt;head&gt;
+&lt;style&gt;
+  body{ font-family: sans-serif; text-align:center; margin-top:60px; }
+  button{ padding:10px 18px; border-radius:8px; border:none; background:#e34c26; color:white; font-weight:bold; cursor:pointer; }
+&lt;/style&gt;
+&lt;/head&gt;
+&lt;body&gt;
+  &lt;h1&gt;Hola HTML 👋&lt;/h1&gt;
+  &lt;button onclick="this.textContent='¡Clic registrado!'"&gt;Haz clic&lt;/button&gt;
+&lt;/body&gt;
+&lt;/html&gt;
+</textarea>
+    </div>
+    <div class="pane col-preview">
+      <div class="pane-head"><span>Vista previa</span></div>
+      <iframe class="preview" id="html-preview"></iframe>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  <span id="footHint">Skulpt · turtle · input() disponibles en Python</span>
+  <span style="display:flex; gap:14px;">
+    <button class="link" id="footNotesBtn">notas de compatibilidad</button>
+    <span>tribox</span>
+  </span>
+</footer>
+
+<!-- ================= ZIPPY ================= -->
+<div id="zippy">
+  <div id="zippyBubble">
+    <p class="zippy-status" id="zippyStatusText">Hola, soy Zippy 👋</p>
+    <div id="zippyPanel"></div>
+  </div>
+  <svg id="zippyFace" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+    <circle id="zippyRing" cx="32" cy="34" r="27" fill="none" stroke="#4b8bbe" stroke-width="3" stroke-dasharray="10 8" stroke-linecap="round"/>
+    <path d="M4 18 h20 l4 5 h32 a3 3 0 0 1 3 3 v4 H4 z" fill="#f2a93c"/>
+    <rect x="4" y="26" width="56" height="30" rx="5" fill="#ffcf5c" stroke="#c9861b" stroke-width="1.5"/>
+    <g>
+      <ellipse class="eyeL" cx="23" cy="40" rx="6.5" ry="7.5" fill="#fff" stroke="#c9861b" stroke-width="1"/>
+      <ellipse class="eyeR" cx="41" cy="40" rx="6.5" ry="7.5" fill="#fff" stroke="#c9861b" stroke-width="1"/>
+      <circle class="pupil" cx="23" cy="41" r="3" fill="#22262c"/>
+      <circle class="pupil" cx="41" cy="41" r="3" fill="#22262c"/>
+    </g>
+  </svg>
+</div>
+
+<!-- ================= modal: notas ================= -->
+<div class="modal-overlay" id="notesModal">
+  <div class="modal-box">
+    <button class="btn icon modal-close" id="notesCloseBtn">✕</button>
+    <h2>Notas de compatibilidad</h2>
+
+    <h4>shelve → localStorage</h4>
+    <p>El módulo <code>shelve</code> de Skulpt no funciona de forma nativa (no hay sistema de archivos real en el navegador). Aquí se reemplaza por un módulo propio que guarda cada valor en <code>window.localStorage</code> del navegador, serializando con <code>json</code>. Funciona como un diccionario normal (<code>shelf[clave] = valor</code>, <code>.get()</code>, <code>.keys()</code>), pero los datos son <strong>persistentes solo en este navegador y este dominio</strong>: no se comparten entre dispositivos, y se pierden si el usuario borra los datos del sitio o navega en modo incógnito y cierra la ventana.</p>
+
+    <h4>turtle: onkeypress / onkey</h4>
+    <p>Un problema común de Skulpt es que los eventos de teclado del lienzo de la tortuga no llegan si el <code>&lt;canvas&gt;</code> no tiene el foco del navegador. Este programa le da <code>tabindex</code> al lienzo y lo enfoca automáticamente después de ejecutar; también se reenfoca si haces clic dentro del panel. Si aun así no responde, haz clic una vez dentro del panel de la tortuga antes de presionar teclas.</p>
+
+    <h4>ZippyAssist y Groq</h4>
+    <p>Zippy solo se activa si enciendes el interruptor y pegas tu propia clave de API de <a href="https://console.groq.com/keys" target="_blank" rel="noopener">Groq</a>. La clave se guarda únicamente en el <code>localStorage</code> de tu navegador y las peticiones se hacen directamente desde tu navegador a <code>api.groq.com</code> — este sitio no tiene servidor propio ni ve tu clave. Como cualquier clave usada en el navegador, cualquiera con acceso a tus herramientas de desarrollador podría leerla; no la uses en una máquina compartida.</p>
+
+    <h4>Requisitos generales</h4>
+    <ul>
+      <li>Se necesita conexión a internet: Skulpt se carga desde un CDN, y Zippy llama a la API de Groq.</li>
+      <li>Si algo del CDN no carga (bloqueado por una red restrictiva, por ejemplo), el modo Python no funcionará, pero JavaScript y HTML sí, ya que corren nativamente en tu navegador.</li>
+    </ul>
+  </div>
+</div>
+
+<script>
+/* ============================================================
+   Estado / cambio de modo
+   ============================================================ */
+const MODE_META = {
+  python:     { accent:'--py-1', accent2:'--py-2', hint:'Skulpt · turtle · input() disponibles en Python' },
+  javascript: { accent:'--js-1', accent2:'--js-1', hint:'console.log() se captura en la consola · input() disponible' },
+  html:       { accent:'--ht-1', accent2:'--ht-2', hint:'La vista previa se renderiza en un iframe aislado' },
+};
+let mode = 'python';
+const MODE_ORDER = ['python','javascript','html'];
+
+const root = document.documentElement.style;
+const switchEl = document.getElementById('switch');
+const thumb = document.getElementById('switchThumb');
+const modeLabel = document.getElementById('modeLabel');
+const footHint = document.getElementById('footHint');
+const runBtn = document.getElementById('runBtn');
+const clearBtn = document.getElementById('clearBtn');
+const downloadBtn = document.getElementById('downloadBtn');
+const savedFlash = document.getElementById('savedFlash');
+
+function setMode(m){
+  mode = m;
+  document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+  document.getElementById('view-' + m).classList.add('active');
+
+  switchEl.querySelectorAll('button').forEach(b => b.classList.toggle('active', b.dataset.mode === m));
+  thumb.style.transform = `translateX(${MODE_ORDER.indexOf(m) * 100}%)`;
+
+  const meta = MODE_META[m];
+  root.setProperty('--accent', `var(${meta.accent})`);
+  root.setProperty('--accent-2', `var(${meta.accent2})`);
+  modeLabel.textContent = m;
+  footHint.textContent = meta.hint;
+}
+
+switchEl.querySelectorAll('button').forEach(b => {
+  b.addEventListener('click', () => setMode(b.dataset.mode));
+});
+
+runBtn.addEventListener('click', () => runCurrent());
+clearBtn.addEventListener('click', () => clearCurrent());
+document.addEventListener('keydown', e => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'Enter'){ e.preventDefault(); runCurrent(); }
+  if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's'){ e.preventDefault(); downloadCurrent(); }
+});
+
+function runCurrent(){
+  if (mode === 'python') runPython();
+  else if (mode === 'javascript') runJS();
+  else runHTML();
+}
+function clearCurrent(){
+  if (mode === 'python'){
+    document.getElementById('py-console').innerHTML = '';
+    document.getElementById('turtle-target').innerHTML = '';
+    setPyStatus('lista');
+  } else if (mode === 'javascript'){
+    document.getElementById('js-console').innerHTML = '';
+  } else {
+    document.getElementById('html-preview').srcdoc = '';
+  }
+}
+
+function getEditorFor(m){
+  return document.getElementById(m === 'python' ? 'py-editor' : m === 'javascript' ? 'js-editor' : 'html-editor');
+}
+const EXT = { python: 'py', javascript: 'js', html: 'html' };
+
+function downloadCurrent(){
+  const code = getEditorFor(mode).value;
+  const blob = new Blob([code], { type: 'text/plain' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'codigo.' + EXT[mode];
+  document.body.appendChild(a); a.click(); a.remove();
+  URL.revokeObjectURL(url);
+}
+downloadBtn.addEventListener('click', downloadCurrent);
+
+/* ============================================================
+   Autoguardado en localStorage
+   ============================================================ */
+const autosaveTimers = {};
+function scheduleAutosave(m){
+  clearTimeout(autosaveTimers[m]);
+  autosaveTimers[m] = setTimeout(() => {
+    try {
+      localStorage.setItem('tribox_code_' + m, getEditorFor(m).value);
+      savedFlash.classList.add('show');
+      setTimeout(() => savedFlash.classList.remove('show'), 900);
+    } catch (e) { /* localStorage puede fallar en algunos entornos; se ignora */ }
+  }, 600);
+}
+function restoreAutosave(){
+  ['python','javascript','html'].forEach(m => {
+    try {
+      const saved = localStorage.getItem('tribox_code_' + m);
+      if (saved !== null) getEditorFor(m).value = saved;
+    } catch (e) {}
+  });
+}
+
+/* ============================================================
+   PYTHON — Skulpt (editor + consola + tortuga)
+   ============================================================ */
+const pyConsole = document.getElementById('py-console');
+const pyStatusEl = document.getElementById('py-status');
+const turtleWrap = document.getElementById('turtleWrap');
+
+function setPyStatus(txt, isErr){
+  pyStatusEl.textContent = txt;
+  pyStatusEl.style.color = isErr ? '#ff6b6b' : 'var(--text-dim)';
+}
+
+function pyAppend(text, cls){
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text;
+  pyConsole.appendChild(span);
+  pyConsole.scrollTop = pyConsole.scrollHeight;
+}
+
+function pyInput(promptText){
+  return new Promise(resolve => {
+    if (promptText) pyAppend(promptText);
+    const row = document.createElement('div');
+    row.className = 'console-input-row';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.placeholder = 'Escribe aquí y presiona Enter…';
+    row.appendChild(input);
+    pyConsole.appendChild(row);
+    pyConsole.scrollTop = pyConsole.scrollHeight;
+    input.focus();
+    input.addEventListener('keydown', e => {
+      if (e.key === 'Enter'){
+        const val = input.value;
+        row.remove();
+        pyAppend(val + '\n', 'line-in');
+        resolve(val);
+      }
+    });
+  });
+}
+
+/* ---- shim de shelve (usa localStorage) + puente nativo mínimo ---- */
+const LS_BRIDGE_JS_SRC = `
+var $builtinmodule = function (name) {
+    var mod = {};
+    var PREFIX = "tribox_shelve::";
+    mod.get_item = new Sk.builtin.func(function (pyKey) {
+        var raw = window.localStorage.getItem(PREFIX + Sk.ffi.remapToJs(pyKey));
+        if (raw === null || raw === undefined) return Sk.builtin.none.none$;
+        return new Sk.builtin.str(raw);
+    });
+    mod.set_item = new Sk.builtin.func(function (pyKey, pyVal) {
+        window.localStorage.setItem(PREFIX + Sk.ffi.remapToJs(pyKey), Sk.ffi.remapToJs(pyVal));
+        return Sk.builtin.none.none$;
+    });
+    mod.del_item = new Sk.builtin.func(function (pyKey) {
+        window.localStorage.removeItem(PREFIX + Sk.ffi.remapToJs(pyKey));
+        return Sk.builtin.none.none$;
+    });
+    mod.all_keys = new Sk.builtin.func(function () {
+        var out = [];
+        for (var i = 0; i < window.localStorage.length; i++) {
+            var k = window.localStorage.key(i);
+            if (k.indexOf(PREFIX) === 0) out.push(new Sk.builtin.str(k.slice(PREFIX.length)));
+        }
+        return new Sk.builtin.list(out);
+    });
+    return mod;
+};
+`;
+
+const SHELVE_PY_SRC = `
+import _ls_bridge
+import json as _json
+
+class Shelf(object):
+    def __init__(self, filename, flag='c', writeback=False):
+        self._ns = filename
+
+    def _k(self, key):
+        return self._ns + "::" + str(key)
+
+    def __getitem__(self, key):
+        raw = _ls_bridge.get_item(self._k(key))
+        if raw is None:
+            raise KeyError(key)
+        return _json.loads(raw)
+
+    def __setitem__(self, key, value):
+        _ls_bridge.set_item(self._k(key), _json.dumps(value))
+
+    def __delitem__(self, key):
+        _ls_bridge.del_item(self._k(key))
+
+    def __contains__(self, key):
+        return _ls_bridge.get_item(self._k(key)) is not None
+
+    def get(self, key, default=None):
+        raw = _ls_bridge.get_item(self._k(key))
+        if raw is None:
+            return default
+        return _json.loads(raw)
+
+    def keys(self):
+        prefix = self._ns + "::"
+        out = []
+        for k in _ls_bridge.all_keys():
+            if k.startswith(prefix):
+                out.append(k[len(prefix):])
+        return out
+
+    def __iter__(self):
+        return iter(self.keys())
+
+    def items(self):
+        return [(k, self[k]) for k in self.keys()]
+
+    def close(self):
+        pass
+
+    def sync(self):
+        pass
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        self.close()
+        return False
+
+
+def open(filename, flag='c', writeback=False):
+    return Shelf(filename)
+`;
+
+function builtinRead(x){
+  if (Sk.builtinFiles === undefined || Sk.builtinFiles["files"][x] === undefined)
+    throw "Archivo no encontrado: '" + x + "'";
+  return Sk.builtinFiles["files"][x];
+}
+
+function customRead(x){
+  if (x.indexOf('_ls_bridge') !== -1){
+    if (x.endsWith('.js')) return LS_BRIDGE_JS_SRC;
+    throw "File not found: '" + x + "'";
+  }
+  if (x.indexOf('shelve') !== -1){
+    if (x.endsWith('.py')) return SHELVE_PY_SRC;
+    throw "File not found: '" + x + "'";
+  }
+  return builtinRead(x);
+}
+
+function focusTurtleCanvas(){
+  const canvas = document.querySelector('#turtle-target canvas');
+  if (canvas){
+    canvas.setAttribute('tabindex', '0');
+    canvas.style.outline = 'none';
+    canvas.focus();
+  }
+}
+turtleWrap.addEventListener('mousedown', focusTurtleCanvas);
+
+function runPython(){
+  pyConsole.innerHTML = '';
+  const turtleTarget = document.getElementById('turtle-target');
+  turtleTarget.innerHTML = '';
+  setPyStatus('ejecutando…');
+
+  const w = Math.max(320, turtleWrap.clientWidth - 20);
+  const h = Math.max(240, turtleWrap.clientHeight - 20);
+
+  Sk.configure({
+    output: pyAppend,
+    read: customRead,
+    inputfun: pyInput,
+    inputfunTakesPrompt: true,
+    __future__: Sk.python3,
+  });
+  Sk.TurtleGraphics = Sk.TurtleGraphics || {};
+  Sk.TurtleGraphics.target = 'turtle-target';
+  Sk.TurtleGraphics.width = w;
+  Sk.TurtleGraphics.height = h;
+
+  const code = getEditorFor('python').value;
+
+  Sk.misceval.asyncToPromise(() => Sk.importMainWithBody("<stdin>", false, code, true))
+    .then(() => { setPyStatus('lista'); setTimeout(focusTurtleCanvas, 50); })
+    .catch(err => {
+      pyAppend('\n' + err.toString() + '\n', 'line-err');
+      setPyStatus('error', true);
+    });
+}
+
+/* ============================================================
+   JAVASCRIPT
+   ============================================================ */
+const jsConsole = document.getElementById('js-console');
+
+function jsAppend(text, cls){
+  const span = document.createElement('span');
+  if (cls) span.className = cls;
+  span.textContent = text + '\n';
+  jsConsole.appendChild(span);
+  jsConsole.scrollTop = jsConsole.scrollHeight;
+}
+function fmt(args){
+  return Array.from(args).map(a => {
+    if (typeof a === 'object'){ try { return JSON.stringify(a); } catch(e){ return String(a); } }
+    return String(a);
+  }).join(' ');
+}
+function runJS(){
+  jsConsole.innerHTML = '';
+  const code = getEditorFor('javascript').value;
+  const original = { log: console.log, error: console.error, warn: console.warn, info: console.info };
+  console.log  = (...a) => jsAppend(fmt(a));
+  console.info = (...a) => jsAppend(fmt(a));
+  console.warn = (...a) => jsAppend(fmt(a));
+  console.error= (...a) => jsAppend(fmt(a), 'line-err');
+  const sandboxInput = (promptText) => window.prompt(promptText || '');
+  try {
+    const fn = new Function('input', code);
+    fn(sandboxInput);
+  } catch (err){
+    jsAppend(err.toString(), 'line-err');
+  } finally {
+    Object.assign(console, original);
+  }
+}
+
+/* ============================================================
+   HTML
+   ============================================================ */
+function runHTML(){
+  document.getElementById('html-preview').srcdoc = getEditorFor('html').value;
+}
+
+/* ============================================================
+   Ajustes: tema, ZippyAssist, clave Groq
+   ============================================================ */
+const settingsBtn = document.getElementById('settingsBtn');
+const settingsPanel = document.getElementById('settingsPanel');
+settingsBtn.addEventListener('click', (e) => { e.stopPropagation(); settingsPanel.classList.toggle('open'); });
+document.addEventListener('click', (e) => {
+  if (!settingsPanel.contains(e.target) && e.target !== settingsBtn) settingsPanel.classList.remove('open');
+});
+
+const themeToggle = document.getElementById('themeToggle');
+function setTheme(retro){
+  document.body.classList.toggle('retro', retro);
+  themeToggle.dataset.state = retro ? 'on' : 'off';
+  themeToggle.textContent = retro ? 'RETRO' : 'MODERNO';
+  localStorage.setItem('tribox_theme', retro ? 'retro' : 'modern');
+}
+themeToggle.addEventListener('click', () => setTheme(themeToggle.dataset.state !== 'on'));
+
+const zippyToggle = document.getElementById('zippyToggle');
+const groqKeyInput = document.getElementById('groqKeyInput');
+let zippyEnabled = false;
+function setZippyEnabled(on){
+  zippyEnabled = on;
+  zippyToggle.dataset.state = on ? 'on' : 'off';
+  zippyToggle.textContent = on ? 'ON' : 'OFF';
+  localStorage.setItem('tribox_zippy_enabled', on ? '1' : '0');
+  if (on) setZippyState('idle', groqKeyInput.value.trim() ? 'Listo, avísame si te trabas 🙂' : 'Falta tu clave de Groq para poder ayudarte.');
+  else hideZippyBubble();
+}
+zippyToggle.addEventListener('click', () => setZippyEnabled(zippyToggle.dataset.state !== 'on'));
+groqKeyInput.addEventListener('input', () => {
+  localStorage.setItem('tribox_groq_key', groqKeyInput.value.trim());
+});
+
+const notesModal = document.getElementById('notesModal');
+document.getElementById('notesBtn').addEventListener('click', () => notesModal.classList.add('open'));
+document.getElementById('footNotesBtn').addEventListener('click', () => notesModal.classList.add('open'));
+document.getElementById('notesCloseBtn').addEventListener('click', () => notesModal.classList.remove('open'));
+notesModal.addEventListener('click', (e) => { if (e.target === notesModal) notesModal.classList.remove('open'); });
+
+/* ============================================================
+   ZippyAssist — mascota + lógica de inactividad + Groq
+   ============================================================ */
+const GROQ_MODEL = 'llama-3.3-70b-versatile'; // si Groq retira este modelo, cámbialo aquí
+const zippyFace = document.getElementById('zippyFace');
+const zippyBubble = document.getElementById('zippyBubble');
+const zippyStatusText = document.getElementById('zippyStatusText');
+const zippyPanel = document.getElementById('zippyPanel');
+
+let zippyBusy = false;
+let pendingFix = null;
+const lastEdit = { python: Date.now(), javascript: Date.now(), html: Date.now() };
+const lastAnalyzed = { python: '', javascript: '', html: '' };
+
+function setZippyState(state, text){
+  zippyFace.classList.remove('thinking');
+  if (state === 'thinking') zippyFace.classList.add('thinking');
+  if (text){
+    zippyStatusText.textContent = text;
+    zippyBubble.classList.add('show');
+  }
+}
+function hideZippyBubble(){ zippyBubble.classList.remove('show'); zippyPanel.classList.remove('open'); zippyPanel.innerHTML=''; }
+zippyFace.addEventListener('click', () => zippyBubble.classList.toggle('show'));
+
+// parpadeo aleatorio
+setInterval(() => {
+  if (Math.random() < 0.35){
+    zippyFace.classList.add('blink');
+    setTimeout(() => zippyFace.classList.remove('blink'), 140);
+  }
+}, 2600);
+
+function hideZippyPanel(){ zippyPanel.classList.remove('open'); zippyPanel.innerHTML = ''; }
+
+function showZippyFixPanel(parsed, forMode){
+  zippyPanel.innerHTML = '';
+  if (parsed.explanation){
+    const p = document.createElement('p');
+    p.style.margin = '0 0 6px 0';
+    p.textContent = parsed.explanation;
+    zippyPanel.appendChild(p);
+  }
+  const pre = document.createElement('pre');
+  pre.textContent = parsed.fixed_code || '';
+  zippyPanel.appendChild(pre);
+
+  const row = document.createElement('div');
+  row.className = 'zippy-actions';
+  const apply = document.createElement('button');
+  apply.className = 'apply';
+  apply.textContent = '✅ Aplicar';
+  apply.onclick = () => {
+    getEditorFor(forMode).value = parsed.fixed_code;
+    lastAnalyzed[forMode] = parsed.fixed_code;
+    lastEdit[forMode] = Date.now();
+    scheduleAutosave(forMode);
+    hideZippyPanel();
+    setZippyState('idle', '¡Listo! Apliqué la corrección. 🗂️✅');
+  };
+  const discard = document.createElement('button');
+  discard.className = 'discard';
+  discard.textContent = '✕ Descartar';
+  discard.onclick = () => { hideZippyPanel(); setZippyState('idle', 'Sin problema, seguimos como estaba.'); };
+  row.append(apply, discard);
+  zippyPanel.appendChild(row);
+  zippyPanel.classList.add('open');
+}
+
+async function zippyAnalyze(){
+  if (zippyBusy || !zippyEnabled) return;
+  const code = getEditorFor(mode).value;
+  if (code.trim().length < 15) return;
+  if (lastAnalyzed[mode] === code) return;
+  const key = (groqKeyInput.value || '').trim();
+  if (!key){ setZippyState('idle', 'Falta tu clave de Groq (⚙️ Ajustes) para poder ayudarte.'); return; }
+
+  const forMode = mode;
+  zippyBusy = true;
+  lastAnalyzed[forMode] = code;
+  setZippyState('thinking', 'Viendo tu código de ' + forMode + '…');
+  hideZippyPanel();
+
+  const sys = 'Eres Zippy, un asistente de programacion amistoso integrado en un editor de ' + forMode + '. ' +
+    'Se te da codigo que el usuario dejo de escribir hace 10 segundos, posiblemente incompleto o con errores. ' +
+    '1) Deduce en una frase breve, en espanol, que esta tratando de lograr el usuario. ' +
+    '2) Corrige el codigo para que funcione bien y logre eso: arregla errores de sintaxis y errores logicos evidentes, completa lo que falte de forma razonable, sin agregar funcionalidades que el usuario no pidio. ' +
+    'Responde SOLO con un objeto JSON valido, sin texto adicional ni backticks, con exactamente esta forma: ' +
+    '{"understanding": "...", "explanation": "...", "fixed_code": "..."}';
+
+  try {
+    const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + key },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        temperature: 0.2,
+        messages: [ { role: 'system', content: sys }, { role: 'user', content: code } ]
+      })
+    });
+
+    if (!res.ok){
+      const errText = await res.text();
+      throw new Error('HTTP ' + res.status + ' — ' + errText.slice(0, 180));
+    }
+
+    const data = await res.json();
+    let raw = (data.choices && data.choices[0] && data.choices[0].message && data.choices[0].message.content) || '';
+    raw = raw.trim().replace(/^```json/i, '').replace(/^```/, '').replace(/```$/, '').trim();
+
+    let parsed;
+    try { parsed = JSON.parse(raw); }
+    catch (e){
+      const start = raw.indexOf('{'); const end = raw.lastIndexOf('}');
+      parsed = JSON.parse(raw.slice(start, end + 1));
+    }
+
+    if (mode !== forMode){ zippyBusy = false; return; } // el usuario cambió de modo mientras Zippy pensaba
+    setZippyState('idle', parsed.understanding ? ('Creo que querías: "' + parsed.understanding + '"') : 'Tengo una sugerencia para tu código.');
+    showZippyFixPanel(parsed, forMode);
+  } catch (err){
+    setZippyState('idle', 'No pude conectar con Groq: ' + err.message);
+  } finally {
+    zippyBusy = false;
+  }
+}
+
+['py-editor','js-editor','html-editor'].forEach(id => {
+  const el = document.getElementById(id);
+  const m = id === 'py-editor' ? 'python' : id === 'js-editor' ? 'javascript' : 'html';
+  el.addEventListener('input', () => {
+    lastEdit[m] = Date.now();
+    scheduleAutosave(m);
+    if (mode === m) hideZippyPanel();
+  });
+});
+
+setInterval(() => {
+  if (!zippyEnabled || zippyBusy) return;
+  if (Date.now() - lastEdit[mode] >= 10000) zippyAnalyze();
+}, 1000);
+
+/* ============================================================
+   Arranque
+   ============================================================ */
+restoreAutosave();
+runHTML();
+setMode('python');
+
+try {
+  setTheme(localStorage.getItem('tribox_theme') === 'retro');
+  const savedKey = localStorage.getItem('tribox_groq_key') || '';
+  groqKeyInput.value = savedKey;
+  setZippyEnabled(localStorage.getItem('tribox_zippy_enabled') === '1');
+} catch (e) {}
+</script>
+</body>
+</html>
